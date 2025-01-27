@@ -1,0 +1,197 @@
+﻿@page "/my-houses"
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using System.Globalization
+@using Rentbook.Models
+@using Rentbook.Services
+@using Radzen
+@using Radzen.Blazor
+@inject IHouseService HouseService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject NotificationService NotificationService
+<PageTitle>My Houses</PageTitle>
+
+@* <h3 style="color:black;">My Houses</h3> *@
+<RadzenText Text="My Houses" TextStyle="TextStyle.H5" />
+@if (loading)
+{
+    <RadzenProgressBar Value="100" Mode="ProgressBarMode.Indeterminate" />
+}
+else if (error)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" Variant="Variant.Filled">
+        @errorMessage
+    </RadzenAlert>
+}
+else
+{
+    @if (showDeleteConfirmation)
+    {
+        <div class="modal-backdrop fade show"></div>
+        <div class="modal fade show" tabindex="-1" style="display: block;">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Delete Confirmation</h5>
+                        <button type="button" class="btn-close" @onclick="CancelDelete"></button>
+                    </div>
+                    <div class="modal-body">
+                        Are you sure you want to delete this house?
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CancelDelete">No</button>
+                        <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">Yes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <RadzenDataGrid Data="@houses" Density="Density.Compact" TItem="House" AllowFiltering="true"
+                    AllowColumnResize="true" AllowAlternatingRows="true"
+                    FilterMode="FilterMode.Advanced" AllowSorting="true"
+                    PageSize="10" AllowPaging="true" PagerHorizontalAlign="HorizontalAlign.Left"
+                    ShowPagingSummary="true" RowClick="@RowClick">
+        <Columns>
+            <RadzenDataGridColumn TItem="House" Property="Address" Title="Address" />
+            <RadzenDataGridColumn TItem="House" Property="City" Title="City" />
+            <RadzenDataGridColumn TItem="House" Title="Price">
+                <Template>
+                    @((context as House).Price.ToString("C", new CultureInfo("en-ZM") { NumberFormat = { CurrencySymbol = "K" } }))
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="House" Context="house" Filterable="false" Sortable="false" TextAlign="TextAlign.Center" Width="100px">
+                <Template Context="house">
+                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light"
+                                  Class="m-1" Click="@(() => EditHouse(house))"
+                                  @onclick:stopPropagation="true" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger"
+                                  Class="m-1" Click="@(() => DeleteHouse(house))"
+                                  @onclick:stopPropagation="true" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+<style>
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0,0,0,0.5);
+        z-index: 1040;
+    }
+
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1050;
+        overflow-x: hidden;
+        overflow-y: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-dialog {
+        margin: 1.75rem auto;
+        max-width: 500px;
+    }
+</style>
+
+@code {
+    private List<House> houses;
+    private bool loading = true;
+    private bool error = false;
+    private string errorMessage;
+    private bool showDeleteConfirmation = false;
+    private House houseToDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity.IsAuthenticated)
+            {
+                var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var result = await HouseService.GetUserPropertiesAsync(userId);
+                if (result.IsSuccess)
+                {
+                    houses = result.Value;
+                }
+                else
+                {
+                    error = true;
+                    errorMessage = result.Error;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            error = true;
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    async Task RowClick(DataGridRowMouseEventArgs<House> args)
+    {
+        NavigationManager.NavigateTo($"/house/{args.Data.Id}");
+    }
+
+    async Task EditHouse(House house)
+    {
+        NavigationManager.NavigateTo($"/manage-house/{house.Id}");
+    }
+
+    void DeleteHouse(House house)
+    {
+        houseToDelete = house;
+        showDeleteConfirmation = true;
+    }
+
+    void CancelDelete()
+    {
+        showDeleteConfirmation = false;
+        houseToDelete = null;
+    }
+
+    async Task ConfirmDelete()
+    {
+        if (houseToDelete != null)
+        {
+            try
+            {
+                var result = await HouseService.DeleteHouseAsync(houseToDelete.Id);
+                if (result.IsSuccess)
+                {
+                    houses.Remove(houseToDelete);
+                    NotificationService.Notify(NotificationSeverity.Success, "Success", "House deleted successfully");
+                }
+                else
+                {
+                    NotificationService.Notify(NotificationSeverity.Error, "Error", result.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+            }
+        }
+        showDeleteConfirmation = false;
+        houseToDelete = null;
+        StateHasChanged();
+    }
+}

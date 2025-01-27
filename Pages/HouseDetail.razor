@@ -1,0 +1,879 @@
+﻿@page "/house/{Id:int}"
+@inject IHttpClientFactory HttpClientFactory
+@inject IConfiguration Configuration
+@using Blazored.Toast.Services
+@using Radzen
+@using Radzen.Blazor
+@using Rentbook.Models
+@using Rentbook.Services
+@using System.Text.Json
+@inject NavigationManager NavigationManager
+@using System.Text.Json.Serialization
+@using System.Globalization
+@inject IJSRuntime JSRuntime
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Net.Http.Headers
+@using Rentbook.Services
+@inject IHouseService HouseService
+@inject IToastService ToastService
+@using System.Timers
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ILogger<HouseDetail> Logger 
+
+
+<PageTitle>House Details Page</PageTitle>
+
+@if (isLoading)
+{
+    <RadzenProgressBar Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else if (errorMessage != null)
+{
+    <div class="error-message">
+        <p>@errorMessage</p>
+        <button class="btn btn-primary" @onclick="GoBack">Go Back</button>
+    </div>
+}
+else if (house != null)
+{
+    <div class="house-details-container">
+        <button @onclick="GoBack" class="btn btn-outline-dark">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-left" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8" />
+            </svg>
+            Back to Listings
+        </button>
+
+
+        <div class="m-3">
+            <RadzenText Text="@house.PropertyType" TextStyle="TextStyle.H3" />
+        </div>
+
+       
+
+        @if (house?.Images != null && house.Images.Any())
+        {
+            <div class="container-fluid mt-3 mb-3">
+                <RadzenCard>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <RadzenText TextStyle="TextStyle.H6" Class="m-0">Property Gallery</RadzenText>
+                        <RadzenBadge BadgeStyle="BadgeStyle.Info">@house.Images.Count photo@(house.Images.Count != 1 ? "s" : "")</RadzenBadge>
+                    </div>
+
+                    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2">
+                        @foreach (var image in house.Images.Select((value, index) => new { value, index }))
+                        {
+                            var currentIndex = image.index;
+                            if (image.value?.ImageUrl != null)
+                            {
+                                <div class="col">
+                                    <RadzenCard Class="p-0 h-100 gallery-thumbnail position-relative"
+                                                @onclick="() => OpenMagnifiedView(currentIndex)"
+                                                style="cursor: pointer;">
+                                        <div class="image-overlay position-absolute top-0 end-0 m-2">
+                                            <RadzenBadge BadgeStyle="BadgeStyle.Light">@(currentIndex + 1)</RadzenBadge>
+                                        </div>
+                                        <RadzenImage Path="@image.value.ImageUrl"
+                                                     Class="w-100 h-100 object-fit-cover rounded"
+                                                     Style="aspect-ratio: 16/9;"
+                                                     AlternateText="@($"House Image {currentIndex + 1}")"
+                                                     LoadingPlaceholder="Loading..."
+                                                     LoadingPlaceholderTemplate="@LoadingTemplate"
+                                                     Lazy="true"></RadzenImage>
+                                        @if (currentIndex == 0)
+                                        {
+                                            <div class="position-absolute bottom-0 start-0 m-2">
+                                                <RadzenBadge BadgeStyle="BadgeStyle.Success">Featured</RadzenBadge>
+                                            </div>
+                                        }
+                                    </RadzenCard>
+                                </div>
+                            }
+                        }
+                    </div>
+                </RadzenCard>
+            </div>
+        }
+        else
+        {
+            <RadzenCard Class="mt-3">
+                <div class="d-flex align-items-center justify-content-center p-4">
+                    <RadzenText TextStyle="TextStyle.H6" Class="m-0 text-muted">No images available</RadzenText>
+                </div>
+            </RadzenCard>
+        }
+
+        <style>
+            .gallery-thumbnail {
+                transition: transform 0.2s ease-in-out;
+                overflow: hidden;
+            }
+
+                .gallery-thumbnail:hover {
+                    transform: scale(1.02);
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                }
+
+            .loading-placeholder {
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 200% 100%;
+                animation: loading 1.5s infinite;
+            }
+
+            @@keyframes loading {
+                0%
+
+            {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
+
+            }
+
+            .image-overlay {
+                z-index: 1;
+            }
+        </style>
+       
+
+       
+    
+
+
+
+        @if (showPaymentAlert)
+        {
+            <div class="modal-overlay" style="z-index:1050;">
+                <div class="modal-content alert alert-warning">
+                    <h4 class="alert-heading">Complete Payment to View Owner's Contact</h4>
+                    <p>To view the home owner's contact information, please follow these steps:</p>
+                    <ol>
+                        <li>Enter your 10-digit phone number below.</li>
+                        <li>Click "Proceed with Payment" to initiate a K2 transaction.</li>
+                        <li>Approve the K2 payment on your mobile wallet when prompted.</li>
+                    </ol>
+                    <div class="form-group">
+                        <label for="phoneNumber">Phone Number (10 digits):</label>
+                        <input type="tel" id="phoneNumber" @bind="phoneNumber" placeholder="Enter your 10-digit phone number" required class="form-control" maxlength="10" pattern="\d{10}" />
+                    </div>
+                    <p class="mt-2"><strong>Transaction cost: K2</strong></p>
+                    @if (isSpinning)
+                    {
+                        <RadzenText Text="@($"20 seconds Remaining: {countdown}s")" TextStyle="TextStyle.H5" />
+                    }
+                    <div class="d-flex justify-content-center mt-3">
+                       
+                        <button @onclick="ProcessPayment" class="btn btn-primary me-2" disabled="@isSpinning">
+                            @if (isSpinning)
+                            {
+                                
+                                <RadzenProgressBar Value="100" Mode="ProgressBarMode.Indeterminate" />
+                            }
+                            else
+                            {
+                                <span>Proceed with Payment</span>
+                            }
+                        </button>
+                        <button class="btn btn-secondary" @onclick="CancelPayment" disabled="@isLoading">Cancel</button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(paymentStatus))
+                    {
+                        <div class="payment-status mt-3">
+                            <p>@paymentStatus</p>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success mt-3">
+                            @successMessage
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger mt-3">
+                            @errorMessage
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (isPaymentSuccessful)
+        {
+            <RadzenCard Style="max-width: 300px; margin: 20px auto;">
+                  
+            <ChildContent>
+                 <RadzenText TextStyle="TextStyle.H6" Style="margin: 0;">Landlord's Contact</RadzenText>
+                <p style="font-size: 1.2em; color: #555;">@house.OwnerContact</p>
+            </ChildContent>
+            </RadzenCard>
+
+        <audio id="pingSound">
+            <source src="audio/ping-sound.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+        </audio>
+
+        }
+        else
+        {
+            <div class="mb-3">
+            <button @onclick="CallOwner" class="btn btn-outline-success">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-telephone" viewBox="0 0 16 16">
+                    <path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.568 17.568 0 0 0 4.168 6.608 17.569 17.569 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.678.678 0 0 0-.58-.122l-2.19.547a1.745 1.745 0 0 1-1.657-.459L5.482 8.062a1.745 1.745 0 0 1-.46-1.657l.548-2.19a.678.678 0 0 0-.122-.58L3.654 1.328zM1.884.511a1.745 1.745 0 0 1 2.612.163L6.29 2.98c.329.423.445.974.315 1.494l-.547 2.19a.678.678 0 0 0 .178.643l2.457 2.457a.678.678 0 0 0 .644.178l2.189-.547a1.745 1.745 0 0 1 1.494.315l2.306 1.794c.829.645.905 1.87.163 2.611l-1.034 1.034c-.74.74-1.846 1.065-2.877.702a18.634 18.634 0 0 1-7.01-4.42 18.634 18.634 0 0 1-4.42-7.009c-.362-1.03-.037-2.137.703-2.877L1.885.511z" />
+                </svg>
+                Call Owner
+            </button>
+            </div>
+        }
+
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title m-2">House Details</h2>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    @foreach (var detail in GetHouseDetails())
+                    {
+                        <dt class="col-sm-3">@detail.Label</dt>
+                        <dd class="col-sm-9">
+                            @if (detail.IsBoolean)
+                            {
+                                <span class="badge @(detail.BooleanValue ? "bg-success" : "bg-danger")">
+                                    @(detail.BooleanValue ? "Yes" : "No")
+                                </span>
+                            }
+                            else
+                            {
+                                @detail.Value
+                            }
+                        </dd>
+                    }
+                    <dt class="col-sm-3">Amenities</dt>
+                    <dd class="col-sm-9">
+                        @foreach (var amenity in house.Amenities)
+                        {
+                            <span class="badge bg-info me-1">@amenity</span>
+                        }
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+
+
+    
+       
+    </div>
+
+
+
+    @if (showMagnifiedView)
+    {
+        <div class="magnified-view-overlay" @onclick="CloseMagnifiedView">
+            <div class="magnified-view-container" @onclick:stopPropagation>
+                @if (isDeleting)
+                {
+                    <RadzenProgressBar Value="100" Mode="ProgressBarMode.Indeterminate" />
+                }
+                <img src="@house.Images[currentImageIndex].ImageUrl" alt="Magnified House Image" />
+            
+                <div class="magnified-view-controls">
+                    <button class="btn btn-primary" @onclick="PreviousImage" disabled="@(currentImageIndex == 0)">&lt;</button>
+                    <button class="btn btn-primary" @onclick="NextImage" disabled="@(currentImageIndex == house.Images.Count - 1)">&gt;</button>
+                    
+                    @if(IsOwnerOrAdmin)
+                    {
+                        <button @onclick="() => DeleteImage(house.Images[currentImageIndex].Id)" class="btn btn-danger">Delete</button>
+                    }
+               
+                </div>
+                <button class="close-button" @onclick="CloseMagnifiedView">×</button>
+            </div>
+        </div>
+    }
+
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+    private House house;
+    private bool IsOwnerOrAdmin = false;
+    private bool isLoading = true;
+    private string errorMessage;
+    private int currentImageIndex = 0;
+    private string ownerContact = string.Empty;
+    private string successMessage;
+    private bool showPaymentAlert = false;
+
+    // private bool showPaymentForm = false;
+    private string phoneNumber = string.Empty;
+    private string paymentStatus = string.Empty;
+    private const decimal CONTACT_FEE = 2m; // 2 ZMW
+    private bool showMagnifiedView = false;
+    private bool showUploadBtn = false;
+    private bool isUploading = false;
+    private bool isPaymentSuccessful = false;
+    private bool isSpinning = false;
+    private int countdown = 20;
+    private Timer timer;
+    private bool isDeleting = false;
+
+    private void ShowUploadBtn()
+    {
+        showUploadBtn = true;
+    }
+
+    private async Task OpenMagnifiedView(int index)
+    {
+        if (house?.Images != null && index >= 0 && index < house.Images.Count)
+        {
+            currentImageIndex = index;
+            showMagnifiedView = true;
+        }
+    }
+
+    // private void OpenMagnifiedView(int index)
+    // {
+    //     currentImageIndex = index;
+    //     showMagnifiedView = true;
+    // }
+
+    private void CloseMagnifiedView()
+    {
+        showMagnifiedView = false;
+    }
+
+
+
+    private RenderFragment LoadingTemplate = @<div class="loading-placeholder"></div>;
+
+
+    private List<IBrowserFile> selectedFiles = new List<IBrowserFile>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+
+            var apiClient = HttpClientFactory.CreateClient("API");
+            var response = await apiClient.GetAsync($"/api/houses/{Id}");
+            response.EnsureSuccessStatusCode();
+            var jsonData = await response.Content.ReadAsStringAsync();
+            timer = new Timer(1000);
+            timer.Elapsed += OnTimerElapsed;
+
+            if (house?.Images == null || !house.Images.Any())
+            {
+                currentImageIndex = -1;
+            }
+
+
+
+            var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Converters =
+                {
+                    new JsonStringEnumConverter(),
+                    new CustomDateTimeConverter(),
+                    new NullableDateTimeConverter()
+                }
+                };
+            house = JsonSerializer.Deserialize<House>(jsonData, options);
+            Logger.LogInformation($"House Owner ID: {house?.OwnerId}");
+
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            Logger.LogInformation($"User Authenticated: {user.Identity.IsAuthenticated}");
+            var userId = user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
+            Logger.LogInformation($"User ID (from URI): {userId}");
+
+            if (user.Identity.IsAuthenticated)
+            {
+                var isAdmin = user.IsInRole("Admin");
+                Logger.LogInformation($"Is Admin: {isAdmin}");
+                IsOwnerOrAdmin = isAdmin || (userId == house?.OwnerId);
+                Logger.LogInformation($"IsOwnerOrAdmin: {IsOwnerOrAdmin}");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Sorry, we couldn't load the house details. Please try again later.";
+            Console.WriteLine($"Error fetching house details: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // When the House parameter changes, update the IsOwnerOrAdmin check
+    protected override async Task OnParametersSetAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var isAdmin = user.IsInRole("Admin");
+
+            // Check if user is either admin or owner
+            //IsOwnerOrAdmin = (userId == house?.OwnerId);
+            IsOwnerOrAdmin = isAdmin || (userId == house?.OwnerId);
+        }
+
+        await base.OnParametersSetAsync();
+    }
+
+
+    private class HouseDetailItem
+    {
+        public string Label { get; set; }
+        public string Value { get; set; }
+        public bool IsBoolean { get; set; }
+        public bool BooleanValue { get; set; }
+    }
+
+    private List<HouseDetailItem> GetHouseDetails()
+    {
+        return new List<HouseDetailItem>
+        {
+            new HouseDetailItem { Label = "Price", Value = FormatPrice(house.Price) },
+            new HouseDetailItem { Label = "Vicinity", Value = house.Vicinity },
+            new HouseDetailItem { Label = "Bedrooms", Value = house.Bedrooms.ToString() },
+            new HouseDetailItem { Label = "Bathrooms", Value = house.Bathrooms.ToString() },
+            new HouseDetailItem { Label = "Address", Value = house.Address },
+            new HouseDetailItem { Label = "City", Value = house.City },
+            new HouseDetailItem { Label = "Description", Value = house.Description },
+            new HouseDetailItem { Label = "Is Available", IsBoolean = true, BooleanValue = house.IsAvailable },
+            new HouseDetailItem { Label = "Is Furnished", IsBoolean = true, BooleanValue = house.IsFurnished },
+            new HouseDetailItem { Label = "Pets Allowed", IsBoolean = true, BooleanValue = house.PetsAllowed }
+        };
+    }
+
+    private string FormatPrice(decimal price)
+    {
+        return $"K{price.ToString("N0", new CultureInfo("en-ZM"))}";
+    }
+
+
+
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+
+    private void PreviousImage()
+    {
+        if (currentImageIndex > 0)
+            currentImageIndex--;
+    }
+
+    private void NextImage()
+    {
+        if (currentImageIndex < house.Images.Count - 1)
+            currentImageIndex++;
+    }
+
+    private void EditHouse()
+    {
+        NavigationManager.NavigateTo($"/manage-house/{Id}");
+    }
+
+    private async Task DeleteHouse()
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this house?"))
+        {
+            try
+            {
+                var apiClient = HttpClientFactory.CreateClient("API");
+                var response = await apiClient.DeleteAsync($"/api/houses/{Id}");
+                response.EnsureSuccessStatusCode();
+                NavigationManager.NavigateTo("/");
+            }
+            catch (Exception ex)
+            {
+                errorMessage = "Failed to delete the house. Please try again later.";
+                Console.WriteLine($"Error deleting house: {ex.Message}");
+            }
+        }
+    }
+
+    private void CallOwner()
+    {
+        showPaymentAlert = true;
+        // showPaymentForm = true;
+        paymentStatus = string.Empty;
+        StateHasChanged();
+    }
+
+    private void CancelPayment()
+    {
+        showPaymentAlert = false;
+    }
+
+    private void HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        selectedFiles = e.GetMultipleFiles().ToList();
+    }
+
+    private async Task UploadImages()
+    {
+        isUploading = true;
+        StateHasChanged();
+
+        List<string> successfulUploads = new List<string>();
+        List<string> failedUploads = new List<string>();
+
+        try
+        {
+            var apiClient = HttpClientFactory.CreateClient("API");
+
+            foreach (var file in selectedFiles)
+            {
+                try
+                {
+                    using var content = new MultipartFormDataContent();
+                    using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024); // 10MB max
+                    using var streamContent = new StreamContent(stream);
+
+                    content.Add(streamContent, "image", file.Name);
+
+                    var response = await apiClient.PostAsync($"api/houses/{Id}/images", content);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        successfulUploads.Add(file.Name);
+                        Console.WriteLine($"Successfully uploaded: {file.Name}");
+                    }
+                    else
+                    {
+                        failedUploads.Add(file.Name);
+                        var errorContent = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine($"Failed to upload: {file.Name}. Status: {response.StatusCode}, Error: {errorContent}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    failedUploads.Add(file.Name);
+                    Console.WriteLine($"Exception while uploading {file.Name}: {ex.Message}");
+                }
+            }
+
+            if (successfulUploads.Any())
+            {
+                successMessage = $"Successfully uploaded {successfulUploads.Count} image(s).";
+            }
+
+            if (failedUploads.Any())
+            {
+                errorMessage = $"Failed to upload {failedUploads.Count} image(s): {string.Join(", ", failedUploads)}";
+            }
+
+            if (successfulUploads.Any() || failedUploads.Any())
+            {
+                // Refresh the page to show new images
+                NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+            }
+            else
+            {
+                errorMessage = "No files were processed. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An unexpected error occurred: {ex.Message}";
+            Console.WriteLine($"Unexpected error in upload process: {ex.Message}");
+        }
+        finally
+        {
+            isUploading = false;
+            selectedFiles.Clear();
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteImage(int imageId)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this image?"))
+        {
+            try
+            {
+                isDeleting = true;
+                var apiClient = HttpClientFactory.CreateClient("API");
+                var response = await apiClient.DeleteAsync($"/api/Houses/{Id}/images/{imageId}");
+                response.EnsureSuccessStatusCode();
+
+                // Refresh the house details to update the image list
+                await OnInitializedAsync();
+            }
+            catch (Exception ex)
+            {
+                errorMessage = "Failed to delete the image. Please try again later.";
+                Console.WriteLine($"Error deleting image: {ex.Message}");
+            }
+            finally {
+                isDeleting = false;
+            }
+        }
+    }
+
+    private async Task ProcessPayment()
+    {
+        isSpinning = true;
+        paymentStatus = "Processing payment...";
+        StartCountdown();
+        StateHasChanged();
+        try
+        {
+            var apiClient = HttpClientFactory.CreateClient("API");
+            var content = new FormUrlEncodedContent(new[]
+            {
+            new KeyValuePair<string, string>("PhoneNumber", phoneNumber),
+            new KeyValuePair<string, string>("Amount", CONTACT_FEE.ToString())
+        });
+            var response = await apiClient.PostAsync("/api/Payment/request-payment", content);
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            if (response.IsSuccessStatusCode)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var paymentResult = JsonSerializer.Deserialize<PaymentResult>(jsonResponse, options);
+
+                if (paymentResult?.IsError == false)
+                {
+                    if (paymentResult.Data?.Status == "pay-offline")
+                    {
+                        paymentStatus = "Payment must be completed offline. Reference: " + paymentResult.Data.Reference;
+                        await VerifyPayment(paymentResult.Data.Reference);
+                    }
+                    else
+                    {
+                        isPaymentSuccessful = true;
+                        paymentStatus = "Payment successful. Owner contact: " + house.OwnerContact;
+                        showPaymentAlert = false;
+                        NotifyUserAccess();
+                    }
+                }
+                else
+                {
+                    paymentStatus = "Payment failed: " + paymentResult?.Message;
+                }
+            }
+            else
+            {
+                paymentStatus = "Payment request failed. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            paymentStatus = "An error occurred: " + ex.Message;
+        }
+        isSpinning = false;
+        StateHasChanged();
+    }
+
+    private async Task VerifyPayment(string reference)
+    {
+        try
+        {
+            var apiClient = HttpClientFactory.CreateClient("API");
+            var content = new FormUrlEncodedContent(new[]
+            {
+            new KeyValuePair<string, string>("Reference", reference)
+        });
+            var response = await apiClient.PostAsync("/api/Payment/verify-transaction", content);
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            if (response.IsSuccessStatusCode)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var verificationResult = JsonSerializer.Deserialize<VerificationResult>(jsonResponse, options);
+
+                if (verificationResult?.IsError == false)
+                {
+                    if (verificationResult.Data.Status.Equals("successful", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isPaymentSuccessful = true;
+                        paymentStatus = $"Payment of {verificationResult.Data.Amount} verified and successful for {verificationResult.Data.CustomerName}. Owner contact: " + house.OwnerContact;
+                        showPaymentAlert = false;
+                        NotifyUserAccess();
+                    }
+                    else
+                    {
+                        paymentStatus = $"Payment not yet completed. Status: {verificationResult.Data.Status}. Please complete the offline payment and check back later.";
+                    }
+                }
+                else
+                {
+                    paymentStatus = "Payment verification failed: " + verificationResult?.Message;
+                }
+            }
+            else
+            {
+                paymentStatus = "Payment verification request failed. Please try again later.";
+            }
+        }
+        catch (Exception ex)
+        {
+            paymentStatus = "An error occurred during verification: " + ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    public class PaymentResult
+    {
+        public string Message { get; set; }
+        public PaymentData Data { get; set; }
+        public bool IsError { get; set; }
+    }
+
+    public class PaymentData
+    {
+        public string Amount { get; set; }
+        public string CustomerName { get; set; }
+        public string CustomerMobileWallet { get; set; }
+        public string Reference { get; set; }
+        public string Status { get; set; }
+    }
+
+    public class VerificationResult
+    {
+        public string Message { get; set; }
+        public VerificationData Data { get; set; }
+        public bool IsError { get; set; }
+    }
+
+    public class VerificationData
+    {
+        public string Amount { get; set; }
+        [JsonPropertyName("customer_name")]
+        public string CustomerName { get; set; }
+        public string CustomerMobileWallet { get; set; }
+        public string Reference { get; set; }
+        public string Status { get; set; }
+    }
+
+
+   
+
+  
+
+    private void OnTimerElapsed(object sender, ElapsedEventArgs e)
+    {
+        // Update the countdown value every second
+        if (countdown > 0)
+        {
+            countdown--;
+            InvokeAsync(StateHasChanged); // Refresh the UI
+        }
+        else
+        {
+            timer.Stop(); // Stop the timer when it reaches 0
+        }
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+
+    private void StartCountdown()
+    {
+        countdown = 20; // Reset countdown if needed
+        timer.Start();
+    }
+
+    private async Task NotifyUserAccess()
+    {
+        try
+        {
+            var apiClient = HttpClientFactory.CreateClient("API");
+            var notificationData = new
+            {
+                PhoneNumber = phoneNumber,
+                HouseId = Id,
+                OwnerContact = house.OwnerContact,
+                AccessTimestamp = DateTime.UtcNow
+            };
+
+            var jsonContent = JsonSerializer.Serialize(notificationData);
+            var content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
+
+            var response = await apiClient.PostAsync("/api/notify/property-view", content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Logger.LogWarning($"Failed to send notification. Status code: {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error sending notification: {ex.Message}");
+            // Don't throw the exception - we don't want to interrupt the user flow
+            // if notification fails
+        }
+    }
+
+
+}
+
+<style>
+    .image-gallery {
+        margin: 20px 0;
+    }
+
+    .main-image {
+        margin-bottom: 15px;
+    }
+
+        .main-image img {
+            width: 100%;
+            height: auto;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+    .thumbnail-container {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        padding: 10px 0;
+    }
+
+    .thumbnail {
+        width: 100px;
+        height: 100px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+        .thumbnail.active {
+            border-color: #007bff;
+        }
+
+        .thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+    .no-images {
+        text-align: center;
+        padding: 20px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+</style>

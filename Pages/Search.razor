@@ -1,0 +1,99 @@
+﻿@page "/search/{SearchQuery}"
+@inject HttpClient HttpClient
+@inject IConfiguration Configuration
+@using Rentbook.Components
+@using Rentbook.Models
+@using System.Text.Json
+@using System.Text.Json.Serialization
+@using Rentbook.Services
+@inject NavigationManager NavigationManager
+@layout ViewLayout
+
+
+<h3>Search Results for: @SearchQuery</h3>
+
+@if (filteredHouses == null)
+{
+    <p>Loading...</p>
+}
+else if (!filteredHouses.Any())
+{
+    <p>No houses found matching your search.</p>
+}
+else
+{
+    <div class="house-grid">
+        @foreach (var house in filteredHouses)
+        {
+            <div @onclick="() => NavigateToHouseDetail(house.Id)" style="cursor: pointer;">
+                <HouseCard House="house" />
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string SearchQuery { get; set; }
+
+    private List<House> houses;
+    private List<House> filteredHouses;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FetchHouses();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await FetchHouses();
+    }
+
+    private async Task FetchHouses()
+    {
+        try
+        {
+            var response = await HttpClient.GetAsync("/api/houses");
+            response.EnsureSuccessStatusCode();
+            var jsonData = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"API Response: {jsonData}");
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters =
+                {
+                    new JsonStringEnumConverter(),
+                    new CustomDateTimeConverter(),
+                    new NullableDateTimeConverter()
+                }
+            };
+            houses = JsonSerializer.Deserialize<List<House>>(jsonData, options);
+            FilterHouses();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching houses: {ex.Message}");
+            houses = new List<House>();
+            filteredHouses = new List<House>();
+        }
+    }
+
+    private void FilterHouses()
+    {
+        if (string.IsNullOrWhiteSpace(SearchQuery))
+            filteredHouses = houses;
+        else
+            filteredHouses = houses.Where(h => 
+                (h.Address != null && h.Address.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                (h.Description != null && h.Description.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                (h.PropertyType != null && h.PropertyType.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+
+        Console.WriteLine($"Filtered houses count: {filteredHouses.Count}");
+    }
+
+    private void NavigateToHouseDetail(int houseId)
+    {
+        NavigationManager.NavigateTo($"/house/{houseId}");
+    }
+}

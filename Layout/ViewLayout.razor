@@ -1,0 +1,68 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="locale" content="en" />
+    <meta name="google" content="notranslate" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Rentbook" />
+    <meta name="apple-mobile-web-app-title" content="Rentbook" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="msapplication-navbutton-color" content="#ffffff" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <base href="~/" />
+    <link rel="stylesheet" href="css/airbnb-style.css" />
+    <link rel="stylesheet" href="css/search-bar.css" />
+    <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
+    <title>Search</title>
+</head>
+<body>
+    <div class="main-layout">
+        <header>
+            <div class="header-content" style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%;">
+                <h1 style="grid-column: 1;">Rentbook</h1>
+                <div class="search-container" style="grid-column: 2;">
+                    <input type="text" class="search-input" placeholder="Search for houses..." @bind="searchQuery" />
+                    <button class="search-button" @onclick="PerformSearch">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16">
+                            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+        <nav>
+            <!-- Add your navigation content here -->
+        </nav>
+        <div class="main-content">
+            @Body
+        </div>
+        <footer>
+            <p>About Rentbook &copy; @DateTime.Now.Year</p>
+        </footer>
+    </div>
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+    <script src="_framework/blazor.server.js"></script>
+</body>
+</html>
+
+@code {
+    private string searchQuery = "";
+
+    private void PerformSearch()
+    {
+        Console.WriteLine($"Search performed with query: {searchQuery}");
+        NavigationManager.NavigateTo($"/search/{searchQuery}");
+    }
+}

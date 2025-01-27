@@ -1,0 +1,37 @@
+﻿@page "/countdown"
+@layout CustomLayout
+@using System.Timers
+
+@code {
+    private int countdown = 20;
+    private Timer timer;
+
+    protected override void OnInitialized()
+    {
+        // Initialize the timer to tick every 1 second (1000 ms)
+        timer = new Timer(1000);
+        timer.Elapsed += OnTimerElapsed;
+        timer.Start();
+    }
+
+    private void OnTimerElapsed(object sender, ElapsedEventArgs e)
+    {
+        // Update the countdown value every second
+        if (countdown > 0)
+        {
+            countdown--;
+            InvokeAsync(StateHasChanged); // Refresh the UI
+        }
+        else
+        {
+            timer.Stop(); // Stop the timer when it reaches 0
+        }
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+}
+
+<RadzenText Text="@($"Time Remaining: {countdown}s")" TextStyle="TextStyle.H1" />

@@ -1,0 +1,505 @@
+﻿@page "/manage-house/{Id:int?}"
+@inject IHttpClientFactory HttpClientFactory
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
+@using Rentbook.Components
+@using Rentbook.Services
+@inject IToastService ToastService
+@inject IHouseService HouseService
+@using Rentbook.DTOs
+@using Rentbook.Models
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Authorization
+@using Blazored.Toast
+@using Blazored.Toast.Services
+@using System.IO
+@using Radzen
+@using Radzen.Blazor
+<PageTitle>@(Id.HasValue ? "Edit House" : "Add House")</PageTitle>
+
+<div class="form-container">
+    <RadzenText Text="@(Id.HasValue ? "Edit House" : "Add House")" TextStyle="TextStyle.H5" />
+    @if (isLoading)
+    {
+        <RadzenProgressBar Value="100" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else
+    {
+        <RadzenTemplateForm TItem="CreatedHouseDTO" Data="@houseDTO" Submit="@HandleValidSubmit">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <RadzenLabel Text="Vicinity" />
+                    <RadzenDropDown @bind-Value="@houseDTO.Vicinity"
+                                    Data="@vicinities"
+                                    class="w-100"
+                                    Name="Vicinity" />
+                    <RadzenRequiredValidator Component="Vicinity" Text="Vicinity is required" />
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <RadzenLabel Text="City" />
+                    <RadzenDropDown @bind-Value="@houseDTO.City"
+                                    Data="@cities"
+                                    class="w-100"
+                                    Name="City" />
+                    <RadzenRequiredValidator Component="City" Text="City is required" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <RadzenLabel Text="Address" />
+                    <RadzenTextBox @bind-Value="@houseDTO.Address"
+                                   class="w-100"
+                                   Name="Address" />
+                    <RadzenRequiredValidator Component="Address" Text="Address is required" />
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <RadzenLabel Text="Property Type" />
+                    <RadzenDropDown @bind-Value="@houseDTO.PropertyType"
+                                    Data="@propertytype"
+                                    class="w-100"
+                                    Name="PropertyType" />
+                    <RadzenRequiredValidator Component="PropertyType" Text="Property type is required" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <RadzenLabel Text="Price" />
+                    <RadzenNumeric @bind-Value="@houseDTO.Price"
+                                   class="w-100"
+                                   Name="Price" />
+                    <RadzenRequiredValidator Component="Price" Text="Price is required" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <RadzenLabel Text="Bedrooms" />
+                    <RadzenNumeric @bind-Value="@houseDTO.Bedrooms"
+                                   class="w-100"
+                                   Name="Bedrooms" />
+                    <RadzenRequiredValidator Component="Bedrooms" Text="Number of bedrooms is required" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <RadzenLabel Text="Bathrooms" />
+                    <RadzenNumeric @bind-Value="@houseDTO.Bathrooms"
+                                   class="w-100"
+                                   Name="Bathrooms" />
+                    <RadzenRequiredValidator Component="Bathrooms" Text="Number of bathrooms is required" />
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <RadzenLabel Text="Square Footage" />
+                    <RadzenNumeric @bind-Value="@houseDTO.SquareFootage"
+                                   class="w-100"
+                                   Name="SquareFootage" />
+                    <RadzenRequiredValidator Component="SquareFootage" Text="Square footage is required" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <RadzenLabel Text="Furnished" />
+                    <RadzenCheckBox @bind-Value="@houseDTO.IsFurnished" Name="IsFurnished" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <RadzenLabel Text="Pets Allowed" />
+                    <RadzenCheckBox @bind-Value="@houseDTO.PetsAllowed" Name="PetsAllowed" />
+                </div>
+                <div class="col-md-4 mb-3">
+                    <RadzenLabel Text="Is Available" />
+                    <RadzenCheckBox @bind-Value="@houseDTO.IsAvailable" Name="IsAvailable" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Description" />
+                <RadzenTextArea @bind-Value="@houseDTO.Description"
+                                class="w-100"
+                                Rows="4"
+                                Name="Description" />
+                <RadzenRequiredValidator Component="Description" Text="Description is required" />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Amenities" />
+                <RadzenTextBox @bind-Value="@amenitiesInput"
+                               class="w-100"
+                               Name="Amenities"
+                               Placeholder="WiFi, Parking, Pool, Gym, Air Conditioning" />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Upload Images" />
+                <InputFile OnChange="@HandleFileSelection" multiple class="form-control" />
+            </div>
+
+            @if (selectedFiles.Any())
+            {
+                <div class="selected-files mb-3">
+                    <h4>Selected Files:</h4>
+                    <ul class="list-unstyled">
+                        @foreach (var file in selectedFiles)
+                        {
+                            <li>@file.Name</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="d-flex gap-2">
+                <RadzenButton ButtonType="ButtonType.Submit"
+                              Text="@(Id.HasValue ? "Update House" : "Add House")"
+                              ButtonStyle="ButtonStyle.Primary"
+                              Size="ButtonSize.Medium"
+                              IsBusy="@isSubmitting" />
+
+                <RadzenButton ButtonType="ButtonType.Button"
+                              Text="Cancel"
+                              ButtonStyle="ButtonStyle.Secondary"
+                              Size="ButtonSize.Medium"
+                              Click="@NavigateBack" />
+            </div>
+        </RadzenTemplateForm>
+    }
+</div>
+
+<style>
+    .form-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .selected-files {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 4px;
+    }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private CreatedHouseDTO houseDTO = new CreatedHouseDTO();
+    private UpdatedHouseDTO updatedhouseDTO = new UpdatedHouseDTO();
+    private List<string> vicinities = new List<string>();
+    private List<string> cities = new List<string>();
+    private List<string> propertytype = new List<string>();
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private List<IBrowserFile> selectedFiles = new List<IBrowserFile>();
+    private string amenitiesInput = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            await Task.WhenAll(
+                LoadHouseData(),
+                LoadVicinities(),
+                LoadCities(),
+                LoadPropertyType()
+            );
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadHouseData()
+    {
+        if (Id.HasValue)
+        {
+            var result = await HouseService.GetHouse(Id.Value);
+            if (result.IsSuccess)
+            {
+                MapHouseDTOToCreatedHouseDTO(result.Value);
+                amenitiesInput = string.Join(", ", result.Value.Amenities);
+            }
+            else
+            {
+                ToastService.ShowError($"Error loading house data: {result.Error}");
+            }
+        }
+    }
+
+    private async Task LoadVicinities()
+    {
+        try
+        {
+            var loadedVicinities = await Http.GetFromJsonAsync<List<string>>("vicinities.json");
+            if (loadedVicinities != null)
+            {
+                vicinities = loadedVicinities;
+            }
+            else
+            {
+                ToastService.ShowWarning("Failed to load vicinities.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Error loading vicinities: {ex.Message}");
+        }
+    }
+
+    private async Task LoadPropertyType()
+    {
+        try
+        {
+            var loadedPropertytypes = await Http.GetFromJsonAsync<List<string>>("propertytype.json");
+            if (loadedPropertytypes != null)
+            {
+                propertytype = loadedPropertytypes;
+            }
+            else
+            {
+                ToastService.ShowWarning("Failed to load properties types.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Error loading property types: {ex.Message}");
+        }
+    }
+
+    private async Task LoadCities()
+    {
+        try
+        {
+            var loadedCities = await Http.GetFromJsonAsync<List<string>>("cities.json");
+            if (loadedCities != null)
+            {
+                cities = loadedCities;
+            }
+            else
+            {
+                ToastService.ShowWarning("Failed to load cities.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Error loading cities: {ex.Message}");
+        }
+    }
+
+    private void MapHouseDTOToCreatedHouseDTO(HouseDTO house)
+    {
+        houseDTO = new CreatedHouseDTO
+            {
+                Id = house.Id,
+                Vicinity = house.Vicinity,
+                Address = house.Address,
+                City = house.City,
+                Price = house.Price,
+                Bedrooms = house.Bedrooms,
+                Bathrooms = house.Bathrooms,
+                SquareFootage = house.SquareFootage,
+                PropertyType = house.PropertyType,
+                IsFurnished = house.IsFurnished,
+                PetsAllowed = house.PetsAllowed,
+                Description = house.Description,
+                IsAvailable = house.IsAvailable
+            };
+    }
+
+    private List<string> ParseAmenities()
+    {
+        return amenitiesInput
+            .Split(',')
+            .Select(a => a.Trim())
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .ToList();
+    }
+
+    // private async Task HandleValidSubmit()
+    // {
+    //     var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+    //     if (!authState.User.Identity.IsAuthenticated)
+    //     {
+    //         ToastService.ShowError("You must be logged in to manage a house.");
+    //         return;
+    //     }
+
+    //     try
+    //     {
+    //         isSubmitting = true;
+    //         StateHasChanged();
+
+    //         var parsedAmenities = ParseAmenities();
+    //         // var result = await HouseService.CreateHouse(houseDTO, parsedAmenities);
+            
+    //         var result = houseDTO.Id.HasValue
+    //         ? await HouseService.UpdateHouse(houseDTO.Id.Value, updatedhouseDTO, parsedAmenities)
+    //         : await HouseService.CreateHouse(houseDTO, parsedAmenities);
+
+    //         if (result.IsSuccess)
+    //         {
+    //             var houseId = result.Value.Id;
+
+    //             if (selectedFiles.Any())
+    //             {
+    //                 await UploadImages(houseId);
+    //             }
+
+    //             ToastService.ShowSuccess("House created successfully.");
+    //             NavigationManager.NavigateTo($"/house/{houseId}");
+    //         }
+    //         else
+    //         {
+    //             ToastService.ShowError($"Error: {result.Error}");
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         ToastService.ShowError($"An error occurred: {ex.Message}");
+    //     }
+    //     finally
+    //     {
+    //         isSubmitting = false;
+    //         StateHasChanged();
+    //     }
+    // }
+
+    private async Task HandleValidSubmit()
+    {
+        if (!await IsUserAuthenticated())
+            return;
+
+        try
+        {
+            isSubmitting = true;
+            StateHasChanged();
+
+            var parsedAmenities = ParseAmenities();
+            Result<HouseDTO> result = await SaveHouse(parsedAmenities);
+
+            if (result.IsSuccess)
+            {
+                await HandleSuccessfulSave(result.Value);
+            }
+            else
+            {
+                ToastService.ShowError($"Error: {result.Error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"An error occurred: {ex.Message}");
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task<bool> IsUserAuthenticated()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (!authState.User.Identity.IsAuthenticated)
+        {
+            ToastService.ShowError("You must be logged in to manage a house.");
+            return false;
+        }
+        return true;
+    }
+
+    private async Task<Result<HouseDTO>> SaveHouse(List<string> parsedAmenities)
+    {
+        if (houseDTO.Id.HasValue)
+        {
+            // Use AutoMapper or a method to map properties more elegantly
+            var updatedHouseDTO = new UpdatedHouseDTO
+                {
+                    Id = houseDTO.Id.Value,
+                    Vicinity = houseDTO.Vicinity,
+                    City = houseDTO.City,
+                    Address = houseDTO.Address,
+                    PropertyType = houseDTO.PropertyType,
+                    Price = houseDTO.Price,
+                    Bedrooms = houseDTO.Bedrooms,
+                    Bathrooms = houseDTO.Bathrooms,
+                    SquareFootage = houseDTO.SquareFootage,
+                    IsAvailable = houseDTO.IsAvailable,
+                    IsFurnished = houseDTO.IsFurnished,
+                    PetsAllowed = houseDTO.PetsAllowed,
+                    Description = houseDTO.Description,
+                    LastUpdated = DateTime.UtcNow,
+                    Amenities = parsedAmenities
+                  
+                };
+
+            return await HouseService.UpdateHouse(houseDTO.Id.Value, updatedHouseDTO, parsedAmenities);
+        }
+        else
+        {
+
+            return await HouseService.CreateHouse(houseDTO, parsedAmenities);
+        }
+    }
+
+    private async Task HandleSuccessfulSave(HouseDTO savedHouse)
+    {
+        if (selectedFiles.Any())
+        {
+            await UploadImages(savedHouse.Id);
+        }
+
+        ToastService.ShowSuccess(houseDTO.Id.HasValue
+            ? "House updated successfully."
+            : "House created successfully.");
+
+        NavigationManager.NavigateTo($"/house/{savedHouse.Id}");
+    }
+
+    private async Task UploadImages(int houseId)
+    {
+        if (!selectedFiles.Any()) return;
+
+        foreach (var file in selectedFiles)
+        {
+            try
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+                using var memoryStream = new MemoryStream();
+                await stream.CopyToAsync(memoryStream);
+                var imageData = memoryStream.ToArray();
+
+                var result = await HouseService.UploadHouseImage(houseId, imageData, file.Name);
+                if (result.IsSuccess)
+                {
+                    ToastService.ShowSuccess($"Image uploaded: {file.Name}");
+                }
+                else
+                {
+                    ToastService.ShowWarning($"Failed to upload: {file.Name}. {result.Error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                ToastService.ShowError($"Error uploading {file.Name}: {ex.Message}");
+            }
+        }
+    }
+
+    private void HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        selectedFiles = e.GetMultipleFiles().ToList();
+    }
+
+    private void NavigateBack()
+    {
+        NavigationManager.NavigateTo(Id.HasValue ? $"/house/{Id}" : "/houses");
+    }
+}

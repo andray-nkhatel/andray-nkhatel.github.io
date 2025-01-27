@@ -1,0 +1,60 @@
+﻿@inherits LayoutComponentBase
+@using Blazored.Toast
+@using Blazored.Toast.Configuration
+@using Blazored.Toast.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using Blazored.LocalStorage
+@using Rentbook.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+@inject IToastService ToastService
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <AuthorizeView>
+                <Authorized>
+                    <span class="me-3">Hello, @GetUserName(context.User)!</span>
+                    <button class="btn btn-link" @onclick="Logout">Logout</button>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/login">Login</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<BlazoredToasts Position="ToastPosition.BottomRight" Timeout="5" />
+
+@code {
+    private string GetUserName(ClaimsPrincipal user)
+    {
+        var firstName = user.FindFirst(ClaimTypes.GivenName)?.Value;
+        var lastName = user.FindFirst(ClaimTypes.Surname)?.Value;
+
+        if (!string.IsNullOrEmpty(firstName) && !string.IsNullOrEmpty(lastName))
+            return $"{firstName}";
+
+        return user.FindFirst(ClaimTypes.Name)?.Value ?? "User";
+    }
+
+    private async Task Logout()
+    {
+        await LocalStorage.RemoveItemAsync("authToken");
+        await LocalStorage.RemoveItemAsync("userRoles");
+        ((ApiAuthenticationStateProvider)AuthenticationStateProvider).MarkUserAsLoggedOut();
+        NavigationManager.NavigateTo("/", true);
+        ToastService.ShowSuccess("You have been successfully logged out.");
+    }
+}

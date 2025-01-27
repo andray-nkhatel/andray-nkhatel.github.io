@@ -1,0 +1,156 @@
+﻿@page "/login"
+@using Blazored.LocalStorage
+@using Rentbook.Models
+@using Rentbook.Services
+@inject IAuthService AuthService
+@inject ILocalStorageService localStorage
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
+@layout AuthLayout
+@using Radzen
+@using Radzen.Blazor
+<PageTitle>Login Page</PageTitle>
+
+
+
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <RadzenCard> 
+                
+                <h2 class="mb-4">Login</h2>
+
+                <div class="mb-3">
+                    <RadzenText Text="Log in to " />
+                    <a href="#" target="_blank">GoZambiaHomes</a>
+                </div>
+
+             
+                <RadzenTemplateForm TItem="LoginModel" Data="@loginModel" Submit="@HandleLogin">
+                    <div class="mb-3">
+                       @*  <RadzenLabel Text="Phone number" Component="phonenumber" /> *@
+                        <RadzenFormField Text="Email"  Style="width: 100%;">
+                        <RadzenTextBox 
+                                     @bind-Value="@loginModel.Email"
+                                     Style="width: 100%;" />
+                        </RadzenFormField>
+                    </div>
+                    <div class="mb-3">
+                        @* <RadzenLabel Text="Password" Component="password" /> *@
+                        <RadzenFormField Text="Password"  Style="width: 100%;">
+                        <RadzenPassword 
+                                      @bind-Value="@loginModel.Password"
+                                      Style="width: 100%;" />
+                        </RadzenFormField>
+                    </div>
+                    <RadzenButton ButtonType="ButtonType.Submit" 
+                                 ButtonStyle="ButtonStyle.Primary"
+                                 Text="@(isLoading ? "Loading..." : "Log in")"
+                                 Disabled="@isLoading"
+                                 Icon="@(isLoading ? "refresh" : "login")"
+                                 IsBusy="@isLoading" />
+                </RadzenTemplateForm>
+                
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <RadzenAlert Variant="Variant.Filled" 
+                                AlertStyle="AlertStyle.Danger" 
+                                ShowIcon="true"
+                                Shade="Shade.Lighter"
+                                Class="mt-3">
+                        @errorMessage
+                    </RadzenAlert>
+                }
+                
+                <div class="mt-3">
+                    <p>Don't have an account? <RadzenLink Path="/register" Text="Register" /></p>
+                </div>
+            </RadzenCard>
+        </div>
+    </div>
+</div>
+
+
+<style>
+    .spinner-border {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        vertical-align: text-bottom;
+        border: .25em solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        -webkit-animation: spinner-border .75s linear infinite;
+        animation: spinner-border .75s linear infinite;
+    }
+
+    @@keyframes spinner-border {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+
+@code {
+    private LoginModel loginModel = new LoginModel();
+    private string errorMessage;
+    private bool isLoading = false;
+
+    private async Task HandleLogin(LoginModel model)
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            var result = await AuthService.Login(model);
+            if (!string.IsNullOrEmpty(result.Token))
+            {
+                await localStorage.SetItemAsync("authToken", result.Token);
+                await localStorage.SetItemAsync("userRoles", result.Roles);
+
+                // Mark the user as authenticated
+                ((ApiAuthenticationStateProvider)AuthStateProvider).MarkUserAsAuthenticated(result.Token);
+
+                // Get the updated authentication state
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                var user = authState.User;
+
+
+
+                // Redirect based on user role
+                if (user.IsInRole("Agent"))
+                {
+                    NavigationManager.NavigateTo("/my-houses");
+                }
+                else if (user.IsInRole("Owner"))
+                {
+                    NavigationManager.NavigateTo("/my-houses");
+                }
+                else if (user.IsInRole("Admin"))
+                {
+                    NavigationManager.NavigateTo("/admin-dashboard");
+                }
+                else
+                {
+                    NavigationManager.NavigateTo("/");
+                }
+            }
+            else
+            {
+                errorMessage = "Invalid username or password.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
+
+
+

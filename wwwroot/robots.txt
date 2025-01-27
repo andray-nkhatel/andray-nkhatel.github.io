@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: https://gozambiahomes.com/admin-dashboard
+Disallow: https://gozambiahomes.com/manage-users
+Disallow: https://gozambiahomes.com/owner-dashboard
+Disallow: /vicinities.json
+Disallow: /cities.json
+Disallow: /appsettings.json.json
+Sitemap: https://gozambiahomes.com/sitemap.xml
+Sitemap: https://www.gozambiahomes.com/sitemap.xml

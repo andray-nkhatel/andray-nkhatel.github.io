@@ -1,0 +1,149 @@
+﻿@page "/register"
+@using Rentbook.Models
+@using Blazored.LocalStorage
+@using Rentbook.Services
+@inject IAuthService AuthService
+@inject ILocalStorageService localStorage
+@inject NavigationManager NavigationManager
+@layout AuthLayout
+@using Radzen
+@using Radzen.Blazor
+<PageTitle>Register Page</PageTitle>
+
+<div class="container mt-5">
+    <div class="row mb-4 justify-content-center">
+        <div class="col-md-6">
+            
+            <RadzenCard>
+                <h2 class="mb-4">Register</h2>
+                <div class="mb-3">
+                    <RadzenText Text="Register with " />
+                    <a href="#" target="_blank">GoZambiaHomes</a>
+                </div>
+               
+         
+                <RadzenTemplateForm TItem="RegisterModel" Data="@registerModel"  Submit="@HandleRegister">
+                    <div class="mb-3">
+                       @*  <RadzenLabel Text="Role" Component="role" /> *@
+                        <RadzenFormField Text="Role"  Style="width: 100%;">
+                        <RadzenDropDown id="role" @bind-Value="registerModel.Role" Placeholder="Select a role" Data="@roles" TextProperty="Text" ValueProperty="Value" Class="form-control" />
+                        </RadzenFormField>
+                    </div>
+                    <div class="mb-3">
+  
+                        <RadzenFormField Text="Phone Number"  Style="width: 100%;">
+                            <RadzenTextBox  @bind-Value="@registerModel.PhoneNumber"/>
+                        </RadzenFormField>
+                        
+                    </div>
+                    @* <RadzenLabel Text="Username" Component="username" /> *@
+                   @*  <div class="mb-3">
+                      
+                        <RadzenFormField Text="Username" Style="width: 100%;">
+                        <RadzenTextBox Name="username" @bind-Value="@registerModel.UserName"  />
+                        </RadzenFormField>
+                    </div> *@
+                    <div class="mb-3">
+                        @* <RadzenLabel Text="Username" Component="username" /> *@
+                        <RadzenFormField Text="Email"  Style="width: 100%;">
+                            <RadzenTextBox  @bind-Value="@registerModel.Email" />
+                        </RadzenFormField>
+                    </div>
+                    <div class="mb-3">
+                      @*   <RadzenLabel Text="First Name" Component="firstname" /> *@
+                        <RadzenFormField Text="First Name"  Style="width: 100%;">
+                        <RadzenTextBox @bind-Value="@registerModel.FirstName"  />
+                        </RadzenFormField>
+                    </div>
+                    <div class="mb-3">
+                        @* <RadzenLabel Text="Last Name" Component="lastname" /> *@
+                        <RadzenFormField Text="Last Name" Style="width: 100%;">
+                        <RadzenTextBox @bind-Value="@registerModel.LastName"  />
+                        </RadzenFormField>
+                    </div>
+                    <div class="mb-3">
+                        @* <RadzenLabel Text="Password" Component="password" /> *@
+                        <RadzenFormField Text="Password"  Style="width: 100%;">
+                        <RadzenPassword  @bind-Value="@registerModel.Password"  />
+                        </RadzenFormField>
+                    </div>
+
+                    <div class="mt-3">
+                        <p>Already have an account? <a href="/login">Login</a></p>
+                    </div>
+
+                    <RadzenButton ButtonType="ButtonType.Submit"
+                                  ButtonStyle="ButtonStyle.Primary"
+                                  Text="@(isLoading ? "Loading..." : "Register")"
+                                  Disabled="@isLoading"
+                                  Icon="@(isLoading ? "refresh" : "login")"
+                                  IsBusy="@isLoading" />
+
+
+                </RadzenTemplateForm>
+             
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <RadzenAlert Variant="Variant.Filled"
+                                 AlertStyle="AlertStyle.Danger"
+                                 ShowIcon="true"
+                                 Shade="Shade.Lighter"
+                                 Class="mt-3">
+                        @errorMessage
+                    </RadzenAlert>
+                }
+           
+            </RadzenCard>
+            
+        </div>
+    </div>
+</div>
+
+
+
+ 
+
+
+
+           
+@code {
+    private RegisterModel registerModel = new RegisterModel();
+    private bool isLoading = false;
+    private string errorMessage;
+    private List<RoleOption> roles = new List<RoleOption>
+    {
+        new RoleOption { Value = "Owner", Text = "Landlord" },
+        new RoleOption {Value="Agent", Text="Agent"}
+    };
+
+    public class RoleOption
+    {
+        public string Value { get; set; }
+        public string Text { get; set; }
+    }
+
+    private async Task HandleRegister()
+    {
+        isLoading = true;
+        registerModel.UserName = registerModel.Email;
+        var result = await AuthService.Register(registerModel);
+        if (result.Success)
+        {
+            // Registration successful, navigate to verify-otp page
+            await localStorage.SetItemAsync("userEmail", registerModel.Email); // Store email in local storage
+            NavigationManager.NavigateTo("/verify-otp"); // Navigate to OTP verification page
+        }
+        else
+        {
+            // Registration failed
+            errorMessage = result.Message ?? "Registration failed. Please try again.";
+            if (result.Errors != null && result.Errors.Any())
+            {
+                errorMessage += " Errors: " + string.Join(", ", result.Errors);
+            }
+        }
+    }
+
+
+   
+    }

@@ -1,0 +1,49 @@
+﻿
+
+.house-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    justify-content: center;
+}
+
+.house-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    /*border-radius: 10px;*/
+    overflow: hidden;
+}
+
+.house-image {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+.house-info {
+    /*background: #f8f8f8;*/
+    padding: 10px;
+    /*border: 1px solid #e0e0e0;*/
+    /*border-top: none;*/
+    /*border-radius: 0 0 10px 10px;*/
+}
+
+/* Rest of your CSS remains the same */
+
+.house-price {
+    font-weight: bold;
+    font-size: 1.2em;
+}
+
+.house-city {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.house-bedroom {
+    color: #666;
+    font-size: 0.9em;
+}

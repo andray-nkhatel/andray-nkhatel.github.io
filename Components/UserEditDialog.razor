@@ -1,0 +1,55 @@
+﻿@using Radzen
+@using Radzen.Blazor
+
+<RadzenTemplateForm TItem="User" Data="@user" Submit="@OnSubmit">
+    <div class="row">
+        <div class="col-md-12 mb-3">
+            <RadzenLabel Text="Name" />
+            <RadzenTextBox @bind-Value="@user.Name" Name="Name" Class="w-100" />
+            <RadzenRequiredValidator Component="Name" Text="Name is required" />
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12 mb-3">
+            <RadzenLabel Text="Email" />
+            <RadzenTextBox @bind-Value="@user.Email" Name="Email" Class="w-100" />
+            <RadzenRequiredValidator Component="Email" Text="Email is required" />
+            <RadzenEmailValidator Component="Email" Text="Please enter a valid email" />
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-12">
+            <RadzenButton ButtonType="ButtonType.Submit" Text="Save" ButtonStyle="ButtonStyle.Primary" Class="me-2" />
+            <RadzenButton Text="Cancel" ButtonStyle="ButtonStyle.Light" Click="@Cancel" />
+        </div>
+    </div>
+</RadzenTemplateForm>
+
+@code {
+    [Parameter] public User User { get; set; }
+    [CascadingParameter] public DialogService DialogService { get; set; }
+
+    private User user = new User();
+
+    protected override void OnInitialized()
+    {
+        // Create a copy of the user to avoid modifying the original directly
+        user = new User
+            {
+                Id = User.Id,
+                Name = User.Name,
+                Email = User.Email
+                // Copy other properties as needed
+            };
+    }
+
+    private void OnSubmit()
+    {
+        DialogService.Close(user);
+    }
+
+    private void Cancel()
+    {
+        DialogService.Close();
+    }
+}

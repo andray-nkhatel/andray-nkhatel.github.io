@@ -1,0 +1,209 @@
+﻿@page "/properties"
+@inject IHttpClientFactory HttpClientFactory
+@inject IConfiguration Configuration
+@using System.Text.Json
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@using System.Text.Json.Serialization
+@using System.Globalization
+@using Rentbook.Models
+@using Rentbook.Components
+@using Rentbook.Services
+@using Radzen
+@using Radzen.Blazor
+
+<RadzenCard>
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <RadzenTextBox Placeholder="@SearchPlaceholder"
+                           @bind-Value="@searchTerm"
+                           Change="@HandleSearchChange"
+                           class="w-100" />
+        </div>
+        <div class="col-md-6 mb-4">
+            <RadzenDropDown @bind-Value="@filterMode"
+                            Data="@filterOptions"
+                            Change="@HandleFilterModeChange"
+                            class="w-100" />
+        </div>
+    </div>
+</RadzenCard>
+
+@if (isLoading)
+{
+    <RadzenProgressBar Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else if (noInternetConnection)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" ShowCloseButton="false">
+        <ChildContent>
+            <p>No internet connection detected. Please check your network and try again.</p>
+            <RadzenButton Click="@RetryLoading" Text="Retry" ButtonStyle="ButtonStyle.Secondary" Class="mt-3" />
+        </ChildContent>
+    </RadzenAlert>
+}
+else if (houses == null || !filteredHouses.Any())
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true" ShowCloseButton="false">
+        <p>No houses found. Try adjusting your search criteria.</p>
+    </RadzenAlert>
+}
+else
+{
+    <RadzenDataList WrapItems="true" AllowPaging="true" Data="@filteredHouses" TItem="House" PageSize="9">
+        <Template Context="house">
+            <RadzenCard Style="width: 100%; max-width: 300px; margin-bottom: 20px; cursor: pointer;"
+                        @onclick="() => NavigateToHouseDetail(house.Id)">
+                @if (house.Images != null && house.Images.Any())
+                {
+                    <RadzenImage Path="@house.Images.First().ImageUrl"
+                                 Style="width: 100%; height: 200px; object-fit: cover;" />
+                }
+                else
+                {
+                    <RadzenImage Path="/placeholder-house.jpg"
+                                 Style="width: 100%; height: 200px; object-fit: cover;" />
+                }
+                <RadzenStack Orientation="Orientation.Vertical" Gap="1rem" Class="mt-3">
+                    <RadzenText TextStyle="TextStyle.H6">@house.City</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body1">@house.Vicinity</RadzenText>
+                    <RadzenText TextStyle="TextStyle.Body2">@house.Bedrooms Bedrooms</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">
+                        @house.Price.ToString("C", new CultureInfo("en-ZM")
+               {
+                   NumberFormat = { CurrencySymbol = "K" }
+               })
+                    </RadzenText>
+
+                </RadzenStack>
+            </RadzenCard>
+        </Template>
+    </RadzenDataList>
+}
+
+@code {
+    private List<House> houses;
+    private List<House> filteredHouses = new List<House>();
+    private string searchTerm = "";
+    private string filterMode = "City";
+    private bool isLoading = true;
+    private bool noInternetConnection = false;
+    private readonly List<string> filterOptions = new List<string> { "Vicinity", "City", "Bedrooms", "Price" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHouses();
+    }
+
+    private async Task LoadHouses()
+    {
+        isLoading = true;
+        noInternetConnection = false;
+        StateHasChanged();
+
+        try
+        {
+            var apiClient = HttpClientFactory.CreateClient("API");
+            var response = await apiClient.GetAsync("/api/houses");
+            response.EnsureSuccessStatusCode();
+            var jsonData = await response.Content.ReadAsStringAsync();
+
+            var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Converters =
+                {
+                    new JsonStringEnumConverter(),
+                    new CustomDateTimeConverter(),
+                    new NullableDateTimeConverter()
+                }
+                };
+
+            houses = JsonSerializer.Deserialize<List<House>>(jsonData, options);
+            UpdateFilteredHouses();
+        }
+        catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException
+                                            || ex.InnerException is System.Net.WebException)
+        {
+            Console.WriteLine($"Network error: {ex.Message}");
+            noInternetConnection = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching houses: {ex.Message}");
+            houses = new List<House>();
+            UpdateFilteredHouses();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateFilteredHouses()
+    {
+        if (houses == null)
+        {
+            filteredHouses = new List<House>();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredHouses = houses;
+            return;
+        }
+
+        filteredHouses = houses.Where(h =>
+        {
+            return filterMode switch
+            {
+                "Vicinity" => h.Vicinity.Contains(searchTerm, StringComparison.OrdinalIgnoreCase),
+                "City" => h.City.Contains(searchTerm, StringComparison.OrdinalIgnoreCase),
+                "Bedrooms" => int.TryParse(searchTerm, out int bedrooms) && h.Bedrooms == bedrooms,
+                "Price" => decimal.TryParse(searchTerm.Replace(",", ""),
+                                          NumberStyles.Any,
+                                          CultureInfo.InvariantCulture,
+                                          out decimal price) &&
+                          Math.Round(h.Price, 2) <= Math.Round(price, 2),
+                _ => false
+            };
+        }).ToList();
+    }
+
+    private void HandleSearchChange(string value)
+    {
+        searchTerm = value;
+        UpdateFilteredHouses();
+        StateHasChanged();
+    }
+
+    private void HandleFilterModeChange(object value)
+    {
+        filterMode = value?.ToString() ?? "City";
+        searchTerm = ""; // Reset search term when filter mode changes
+        UpdateFilteredHouses();
+        StateHasChanged();
+    }
+
+    private async Task RetryLoading()
+    {
+        await LoadHouses();
+    }
+
+    private void NavigateToHouseDetail(int houseId)
+    {
+        NavigationManager.NavigateTo($"/house/{houseId}");
+    }
+
+    private string SearchPlaceholder => filterMode switch
+    {
+        "Vicinity" => "Enter vicinity name...",
+        "City" => "Enter city name...",
+        "Bedrooms" => "Enter number of bedrooms...",
+        "Price" => "Enter maximum price...",
+        _ => "Search..."
+    };
+}
+

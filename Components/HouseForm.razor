@@ -1,0 +1,106 @@
+﻿@using Rentbook.DTOs
+
+<div class="form-group">
+    <label for="address">Address:</label>
+    <InputText id="address" @bind-Value="HouseDTO.Address" class="form-control" />
+    <ValidationMessage For="@(() => HouseDTO.Address)" />
+</div>
+
+<div class="form-group">
+    <label for="vicinity">Vicinity:</label>
+    <InputSelect id="vicinity" @bind-Value="HouseDTO.Vicinity" class="form-control">
+        <option value="">-- Select Vicinity --</option>
+        @foreach (var vicinity in Vicinities)
+        {
+            <option value="@vicinity">@vicinity</option>
+        }
+    </InputSelect>
+    <ValidationMessage For="@(() => HouseDTO.Vicinity)" />
+</div>
+
+<div class="form-group">
+    <label for="city">City:</label>
+    <InputSelect id="city" @bind-Value="HouseDTO.City" class="form-control">
+        <option value="">-- Select City --</option>
+        @foreach (var city in Cities)
+        {
+            <option value="@city">@city</option>
+        }
+    </InputSelect>
+    <ValidationMessage For="@(() => HouseDTO.City)" />
+</div>
+
+<div class="form-group">
+    <label for="price">Price:</label>
+    <InputNumber id="price" @bind-Value="HouseDTO.Price" class="form-control" />
+    <ValidationMessage For="@(() => HouseDTO.Price)" />
+</div>
+
+<div class="form-group">
+    <label for="propertyType">Property Type:</label>
+    <InputSelect id="vicinity" @bind-Value="HouseDTO.PropertyType" class="form-control">
+        <option value="">-- Select Property Type --</option>
+        @foreach (var propertyType in PropertyType)
+        {
+            <option value="@propertyType">@propertyType</option>
+        }
+    </InputSelect>
+    <ValidationMessage For="@(() => HouseDTO.PropertyType)" />
+</div>
+<div class="form-group">
+    <label for="vicinity">Vicinity:</label>
+    <InputSelect id="vicinity" @bind-Value="HouseDTO.Vicinity" class="form-control">
+        <option value="">-- Select Vicinity --</option>
+        @foreach (var vicinities in Vicinities)
+        {
+            <option value="@vicinities">@vicinities</option>
+        }
+    </InputSelect>
+    <ValidationMessage For="@(() => HouseDTO.Vicinity)" />
+</div>
+
+<div class="form-group">
+    <label for="bedrooms">Bedrooms:</label>
+    <InputNumber id="bedrooms" @bind-Value="HouseDTO.Bedrooms" class="form-control" />
+    <ValidationMessage For="@(() => HouseDTO.Bedrooms)" />
+</div>
+
+<div class="form-group">
+    <label for="bathrooms">Bathrooms:</label>
+    <InputNumber id="bathrooms" @bind-Value="HouseDTO.Bathrooms" class="form-control" />
+    <ValidationMessage For="@(() => HouseDTO.Bathrooms)" />
+</div>
+
+<div class="form-group">
+    <label for="squareFootage">Square Footage:</label>
+    <InputNumber id="squareFootage" @bind-Value="HouseDTO.SquareFootage" class="form-control" />
+    <ValidationMessage For="@(() => HouseDTO.SquareFootage)" />
+</div>
+
+<div class="form-check">
+    <InputCheckbox id="isFurnished" @bind-Value="HouseDTO.IsFurnished" class="form-check-input" />
+    <label class="form-check-label" for="isFurnished">Is Furnished</label>
+</div>
+
+<div class="form-check">
+    <InputCheckbox id="petsAllowed" @bind-Value="HouseDTO.PetsAllowed" class="form-check-input" />
+    <label class="form-check-label" for="petsAllowed">Pets Allowed</label>
+</div>
+
+<div class="form-group">
+    <label for="description">Description:</label>
+    <InputTextArea id="description" @bind-Value="HouseDTO.Description" class="form-control" />
+    <ValidationMessage For="@(() => HouseDTO.Description)" />
+</div>
+
+<div class="form-check">
+    <InputCheckbox id="isAvailable" @bind-Value="HouseDTO.IsAvailable" class="form-check-input" />
+    <label class="form-check-label" for="isAvailable">Is Available</label>
+</div>
+
+@code {
+    [Parameter] public CreatedHouseDTO HouseDTO { get; set; }
+    [Parameter] public List<string> Vicinities { get; set; }
+    [Parameter] public List<string> Cities { get; set; }
+    [Parameter] public List<string> PropertyType { get; set; }
+}

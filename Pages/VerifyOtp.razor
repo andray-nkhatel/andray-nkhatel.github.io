@@ -1,0 +1,158 @@
+﻿@page "/verify-otp"
+@using Rentbook.Models
+@using Blazored.LocalStorage
+@using Rentbook.Services
+@inject IAuthService AuthService
+@inject ILocalStorageService localStorage
+@inject NavigationManager NavigationManager
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h2 class="mb-4">Verify OTP</h2>
+            
+            @if (isTimerActive)
+            {
+                <div class="alert alert-info mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>OTP expires in:</span>
+                        <span class="fw-bold">@($"{remainingMinutes:00}:{remainingSeconds:00}")</span>
+                    </div>
+                    <div class="progress mt-2" style="height: 4px;">
+                        <div class="progress-bar bg-info" 
+                             role="progressbar" 
+                             style="width: @(timerProgress)%">
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <EditForm Model="@verifyOtpModel" OnValidSubmit="HandleVerifyOtp">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <InputText id="email" @bind-Value="verifyOtpModel.Email" class="form-control" readonly />
+                </div>
+                <div class="mb-3">
+                    <label for="otp" class="form-label">OTP</label>
+                    <InputText id="otp" @bind-Value="verifyOtpModel.Otp" class="form-control" />
+                    <ValidationMessage For="@(() => verifyOtpModel.Otp)" />
+                </div>
+                <button type="submit" class="btn btn-primary" disabled="@(!isTimerActive)">
+                    Verify OTP
+                </button>
+                @if (!isTimerActive)
+                {
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-link" @onclick="ResendOtp">
+                            Resend OTP
+                        </button>
+                    </div>
+                }
+            </EditForm>
+            
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger mt-3" role="alert">
+                    @errorMessage
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private VerifyOtpModel verifyOtpModel = new VerifyOtpModel();
+    private string errorMessage;
+    private Timer? timer;
+    private int remainingSeconds;
+    private int remainingMinutes;
+    private bool isTimerActive;
+    private const int TOTAL_SECONDS = 600; // 10 minutes
+    private double timerProgress = 100;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var email = await localStorage.GetItemAsync<string>("userEmail");
+        if (string.IsNullOrEmpty(email))
+        {
+            NavigationManager.NavigateTo("/register");
+            return;
+        }
+
+        verifyOtpModel.Email = email;
+        StartTimer();
+    }
+
+    private void StartTimer()
+    {
+        remainingSeconds = TOTAL_SECONDS;
+        isTimerActive = true;
+        timerProgress = 100;
+
+        timer?.Dispose();
+        timer = new Timer(TimerCallback, null, 0, 1000);
+    }
+
+    private void TimerCallback(object? state)
+    {
+        if (remainingSeconds <= 0)
+        {
+            timer?.Dispose();
+            isTimerActive = false;
+            errorMessage = "OTP has expired. Please request a new one.";
+            InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        remainingSeconds--;
+        remainingMinutes = remainingSeconds / 60;
+        var seconds = remainingSeconds % 60;
+        timerProgress = (remainingSeconds / (double)TOTAL_SECONDS) * 100;
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleVerifyOtp()
+    {
+        if (!isTimerActive)
+        {
+            errorMessage = "OTP has expired. Please request a new one.";
+            return;
+        }
+
+        var result = await AuthService.VerifyOtp(verifyOtpModel);
+        if (!string.IsNullOrEmpty(result.Token))
+        {
+            timer?.Dispose();
+            await localStorage.SetItemAsync("authToken", result.Token);
+            await localStorage.SetItemAsync("userRoles", result.Roles);
+            NavigationManager.NavigateTo("/");
+        }
+        else
+        {
+            errorMessage = "OTP verification failed. Please try again.";
+        }
+    }
+
+    private async Task ResendOtp()
+    {
+        // Assuming you have a method in AuthService to resend OTP
+        var result = await AuthService.ResendOtp(verifyOtpModel.Email);
+        if (result)
+        {
+            errorMessage = string.Empty;
+            StartTimer();
+        }
+        else
+        {
+            errorMessage = "Failed to resend OTP. Please try again later.";
+        }
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+}

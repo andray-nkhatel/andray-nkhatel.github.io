@@ -1,0 +1,315 @@
+﻿@page "/admin-dashboard"
+@using Radzen
+@using Radzen.Blazor
+@using Rentbook.Components
+@using Rentbook.Services
+@inject UserService UserService
+@inject IHouseService HouseService
+@inject DialogService DialogService
+@inject NotificationService NotificationService
+@attribute [Authorize(Roles = "Admin")]
+<PageTitle>Admin Dashboard</PageTitle>
+
+<div class="container-fluid">
+    <RadzenText Text="Admin Dashboard" TextStyle="TextStyle.H5" />
+ @*    <h3 class="mb-4">Admin Dashboard</h3> *@
+
+    @if (loading)
+    {
+        <RadzenProgressBar Value="100" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else
+    {
+        <!-- Metrics Cards -->
+        <div class="row mb-4">
+            <!-- Total Users Card -->
+            <div class="col-md-3">
+                <RadzenCard class="p-4 h-100">
+                    <div class="d-flex align-items-center">
+                        <div>
+                            <RadzenIcon Icon="people" Style="font-size: 2.5rem;" Class="me-3 text-primary" />
+                        </div>
+                        <div>
+                            <div class="fs-6 text-muted">Total Users</div>
+                            <div class="fs-4 fw-bold">@userCount?.TotalUsers</div>
+                        </div>
+                    </div>
+                </RadzenCard>
+            </div>
+
+            <!-- Admin Users Card -->
+            <div class="col-md-3">
+                <RadzenCard class="p-4 h-100">
+                    <div class="d-flex align-items-center">
+                        <div>
+                            <RadzenIcon Icon="admin_panel_settings" Style="font-size: 2.5rem;" Class="me-3 text-success" />
+                        </div>
+                        <div>
+                            <div class="fs-6 text-muted">Admin Users</div>
+                            <div class="fs-4 fw-bold">@(userCount?.UsersByRole.GetValueOrDefault("Admin", 0))</div>
+                        </div>
+                    </div>
+                </RadzenCard>
+            </div>
+
+            <!-- Combined Agent and Landlord Users Card -->
+            <div class="col-md-3">
+                <RadzenCard class="p-4 h-100">
+                    <div class="d-flex align-items-center">
+                        <div>
+                            <RadzenIcon Icon="real_estate_agent" Style="font-size: 2.5rem;" Class="me-3 text-warning" />
+                        </div>
+                        <div>
+                            <div class="fs-6 text-muted">Users</div>
+                            <div class="d-flex flex-column">
+                                <div class="d-flex align-items-center">
+                                    <span class="fs-6 text-muted me-2">Agent:</span>
+                                    <span class="fs-5 fw-bold">@(userCount?.UsersByRole.GetValueOrDefault("Agent", 0))</span>
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <span class="fs-6 text-muted me-2">Owner:</span>
+                                    <span class="fs-5 fw-bold">@(userCount?.UsersByRole.GetValueOrDefault("Owner", 0))</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </RadzenCard>
+            </div>
+
+
+            <!-- Total Houses Card -->
+            <div class="col-md-3">
+                <RadzenCard class="p-4 h-100">
+                    <div class="d-flex align-items-center">
+                        <div>
+                            <RadzenIcon Icon="home" Style="font-size: 2.5rem;" Class="me-3 text-info" />
+                        </div>
+                        <div>
+                            <div class="fs-6 text-muted">Total Houses</div>
+                            <div class="fs-4 fw-bold">@totalHouses</div>
+                        </div>
+                    </div>
+                </RadzenCard>
+            </div>
+        </div>
+
+        <!-- Role Distribution Chart -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <RadzenCard>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">User Role Distribution</h5>
+                    </div>
+                    <RadzenChart>
+                        <RadzenPieSeries Data="@roleData"
+                                         Title="Users by Role"
+                                         CategoryProperty="Role"
+                                         ValueProperty="Count">
+                            <RadzenSeriesDataLabels Visible="true" />
+                        </RadzenPieSeries>
+                        <RadzenLegend Position="LegendPosition.Right" />
+                    </RadzenChart>
+                </RadzenCard>
+            </div>
+
+            <!-- Quick Stats Card -->
+            <div class="col-md-6">
+                <RadzenCard>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Role Statistics</h5>
+                    </div>
+                    <RadzenDataGrid Data="@roleData" TItem="RoleData"
+                                    AllowPaging="false" AllowSorting="true">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="RoleData" Property="Role" Title="Role" />
+                            <RadzenDataGridColumn TItem="RoleData" Property="Count" Title="Users" />
+                            <RadzenDataGridColumn TItem="RoleData" Property="Percentage" Title="Percentage">
+                                <Template Context="data">
+                                    @($"{data.Percentage:F1}%")
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenCard>
+            </div>
+        </div>
+
+        <!-- Users DataGrid -->
+        <RadzenCard class="mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">User Management</h5>
+                <RadzenButton Icon="refresh" Text="Refresh" Click="@RefreshData"
+                              ButtonStyle="ButtonStyle.Light" Class="mr-2" />
+            </div>
+            <RadzenDataGrid Data="@users"
+                            TItem="User"
+                            AllowFiltering="true"
+                            AllowColumnResize="true"
+                            AllowAlternatingRows="true"
+                            FilterMode="FilterMode.Advanced"
+                            AllowSorting="true"
+                            PageSize="10"
+                            AllowPaging="true"
+                            PagerHorizontalAlign="HorizontalAlign.Left"
+                            ShowPagingSummary="true">
+                <Columns>
+                    <RadzenDataGridColumn TItem="User" Property="GivenName" Title="Name" />
+                    <RadzenDataGridColumn TItem="User" Property="Email" Title="Email" />
+                    <RadzenDataGridColumn TItem="User" Context="user" Filterable="false"
+                                          Sortable="false" TextAlign="TextAlign.Center" Width="150px">
+                        <Template Context="user">
+                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light"
+                                          Size="ButtonSize.Small"
+                                          Class="m-1" Click="@(() => EditUser(user))"
+                                          @onclick:stopPropagation="true" />
+                            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger"
+                                          Size="ButtonSize.Small"
+                                          Class="m-1" Click="@(() => DeleteUser(user))"
+                                          @onclick:stopPropagation="true" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenCard>
+    }
+</div>
+
+@code {
+    private bool loading = true;
+    private List<User> users;
+    private UserCountDto userCount;
+    private int totalHouses;
+    private List<RoleData> roleData;
+
+    private readonly List<string> allRoles = new List<string> { "Admin", "Agent", "Owner" }; // Add all possible roles here
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            // Load all data concurrently
+            var getUsersTask = UserService.GetUsersAsync();
+            var getUserCountTask = UserService.GetUserCountAsync();
+            var getHousesTask = HouseService.GetAllHousesAsync();
+
+            await Task.WhenAll(getUsersTask, getUserCountTask, getHousesTask);
+
+            users = await getUsersTask;
+            userCount = await getUserCountTask;
+
+            // Handle the Result pattern for houses
+            var housesResult = await getHousesTask;
+            if (housesResult.IsSuccess)
+            {
+                totalHouses = housesResult.Value.Count;
+            }
+            else
+            {
+                NotificationService.Notify(NotificationSeverity.Error, "Error",
+                    "Failed to load houses data: " + housesResult.Error);
+                totalHouses = 0;
+            }
+
+            // Create role data including all possible roles
+            roleData = allRoles.Select(role => new RoleData
+                {
+                    Role = role,
+                    Count = userCount?.UsersByRole.GetValueOrDefault(role, 0) ?? 0,
+                    Percentage = userCount?.TotalUsers > 0
+                        ? (userCount.UsersByRole.GetValueOrDefault(role, 0) * 100.0 / userCount.TotalUsers)
+                        : 0
+                }).ToList();
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error",
+                "Failed to load dashboard data: " + ex.Message);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private string GetRoleIcon(string role) => role switch
+    {
+        "Admin" => "admin_panel_settings",
+        "Agent" => "real_estate_agent",
+        "Owner" => "person",
+        _ => "group"
+    };
+
+    private string GetRoleIconColor(string role) => role switch
+    {
+        "Admin" => "text-success",
+        "Agent" => "text-warning",
+        "Owner" => "text-info",
+        _ => "text-secondary"
+    };
+
+
+    private class RoleData
+    {
+        public string Role { get; set; }
+        public int Count { get; set; }
+        public double Percentage { get; set; }
+    }
+
+    async Task EditUser(User user)
+    {
+        try
+        {
+            var result = await DialogService.OpenAsync<UserEditDialog>("Edit User",
+                new Dictionary<string, object> { { "User", user } },
+                new DialogOptions { Width = "500px", Height = "400px" });
+
+            if (result != null)
+            {
+                await UserService.UpdateUserAsync(user.Id, (User)result);
+                NotificationService.Notify(NotificationSeverity.Success, "Success",
+                    "User updated successfully");
+                await RefreshData();
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error",
+                "Failed to update user: " + ex.Message);
+        }
+    }
+
+    async Task DeleteUser(User user)
+    {
+        try
+        {
+            var confirmed = await DialogService.Confirm(
+                "Are you sure you want to delete this user?",
+                "Delete Confirmation",
+                new ConfirmOptions { OkButtonText = "Yes", CancelButtonText = "No" });
+
+            if (confirmed ?? false)
+            {
+                await UserService.DeleteUserAsync(user.Id);
+                NotificationService.Notify(NotificationSeverity.Success, "Success",
+                    "User deleted successfully");
+                await RefreshData();
+            }
+        }
+        catch (Exception ex)
+        {
+            NotificationService.Notify(NotificationSeverity.Error, "Error",
+                "Failed to delete user: " + ex.Message);
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        loading = true;
+        await LoadData();
+    }
+}

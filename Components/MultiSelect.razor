@@ -1,0 +1,48 @@
+﻿@typeparam T
+
+<div id="@Id">
+    @foreach (var option in Options)
+    {
+        <div>
+            <input type="checkbox"
+                   id="@($"{Id}-{option}")"
+                   value="@option"
+                   checked="@SelectedValues.Contains(option)"
+                   @onchange="(e) => ToggleSelection(option, (bool)e.Value)" />
+            <label for="@($"{Id}-{option}")">@option</label>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    [Parameter]
+    public List<T> Options { get; set; }
+
+    [Parameter]
+    public List<T> Value { get; set; } = new List<T>();
+
+    [Parameter]
+    public EventCallback<List<T>> ValueChanged { get; set; }
+
+    private List<T> SelectedValues
+    {
+        get => Value;
+        set => ValueChanged.InvokeAsync(value);
+    }
+
+    private void ToggleSelection(T option, bool isChecked)
+    {
+        if (isChecked && !SelectedValues.Contains(option))
+        {
+            SelectedValues.Add(option);
+        }
+        else if (!isChecked && SelectedValues.Contains(option))
+        {
+            SelectedValues.Remove(option);
+        }
+        ValueChanged.InvokeAsync(SelectedValues);
+    }
+}

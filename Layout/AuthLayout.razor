@@ -1,0 +1,26 @@
+﻿@inject IJSRuntime JSRuntime
+@inherits LayoutComponentBase
+
+
+
+@* <main class="d-flex flex-grow-1 justify-content-center align-items-center">
+    <div class="container py-4">
+        @Body
+    </div>
+</main>
+ *@
+
+ <div class="d-flex flex-column min-vh-100">
+    <main class="d-flex flex-grow-1 justify-content-center align-items-center">
+        <div class="container">
+            @Body
+        </div>
+    </main>
+</div>
+
+<style>
+    body, html {
+        height: 100%;
+        margin: 0;
+    }
+</style>

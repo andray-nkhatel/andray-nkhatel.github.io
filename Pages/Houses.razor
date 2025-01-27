@@ -1,0 +1,404 @@
+﻿@page "/"
+@inject IHttpClientFactory HttpClientFactory
+@inject IConfiguration Configuration
+@using System.Text.Json
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@using System.Text.Json.Serialization
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Rentbook.Models
+@using Rentbook.Components
+@using Rentbook.Services
+@using Radzen
+@using Radzen.Blazor
+@inject IJSRuntime JSRuntime
+@inject ILogger<Houses> Logger
+
+
+<PageTitle>GoZambiaHomes - Houses for Rent</PageTitle>
+
+
+<RadzenCard>
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <RadzenTextBox Placeholder="@SearchPlaceholder"
+                           @bind-Value="@searchTerm"
+                           Change="@HandleSearchChange"
+                           class="w-100" />
+        </div>
+        <div class="col-md-6 mb-4">
+            <RadzenDropDown @bind-Value="@filterMode"
+                            Data="@filterOptions"
+                            Change="@HandleFilterModeChange"
+                            class="w-100" />
+        </div>
+    </div>
+</RadzenCard>
+
+@* Add this right after your RadzenCard with search controls *@
+<div class="d-flex justify-content-end mb-2 mt-2 mb-2 ms-2 me-2">
+    <RadzenButton Icon="@(isCardView ? "grid_on" : "view_module")"
+                  ButtonStyle="ButtonStyle.Light"
+                  Click="@ToggleView"
+                  Text="@(isCardView ? "Switch to Grid" : "Switch to Cards")"
+                  Class="me-2" />
+</div>
+
+@if (isLoading)
+{
+    <RadzenProgressBar Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else if (noInternetConnection)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true" ShowCloseButton="false">
+        <ChildContent>
+            <p>No internet connection detected. Please check your network and try again.</p>
+            <RadzenButton Click="@RetryLoading" Text="Retry" ButtonStyle="ButtonStyle.Secondary" Class="mt-3" />
+        </ChildContent>
+    </RadzenAlert>
+}
+else if (houses == null || !filteredHouses.Any())
+{
+    <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true" ShowCloseButton="false">
+        <p>No houses found. Try adjusting your search criteria.</p>
+    </RadzenAlert>
+}
+else
+{
+    @if (isCardView)
+    {
+       
+        <div class="container-fluid">
+            <RadzenDataList WrapItems="true" AllowPaging="true" Style="border:none;" Data="@filteredHouses" TItem="House" PageSize="12">
+                <Template Context="house">
+                    <div class="col-12 col-sm-6 col-md-4 col-lg-3 mb-4">
+                        <RadzenCard Style="height: 100%; cursor: pointer;" @onclick="() => NavigateToHouseDetail(house.Id)">
+                            @if (house.Images != null && house.Images.Any())
+                            {
+                                <RadzenImage Path="@house.Images.First().ImageUrl"
+                                             Style="width: 100%; height: 160px; object-fit: cover;" Lazy="true" />
+                            }
+                            else
+                            {
+                                <RadzenImage Path="/placeholder-house.jpg"
+                                             Style="width: 100%; height: 160px; object-fit: cover;" />
+                            }
+                            <RadzenStack Orientation="Orientation.Vertical" Gap="0" Class="mt-3">
+                                <RadzenText TextStyle="TextStyle.H6" Class="mb-0 text-truncate">@house.City</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" Class="mb-0 text-truncate">@house.Vicinity</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" Class="mb-0">@house.Bedrooms Bedrooms</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" Class="mb-0 d-flex align-items-center">
+                                    <div class="led-indicator @(house.IsAvailable ? "available" : "unavailable")"></div>
+                                    <span>@(house.IsAvailable ? "Available" : "Unavailable")</span>
+                                </RadzenText>
+
+                                <RadzenText TextStyle="TextStyle.Caption" Class="mb-1 text-muted">@house.CreatedAt.ToRelativeTime()</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H5" Class="mb-0 font-weight-bold">
+                                    @house.Price.ToString("C", new CultureInfo("en-ZM") { NumberFormat = { CurrencySymbol = "K" } }) / month
+                                </RadzenText>
+                            </RadzenStack>
+                        </RadzenCard>
+                    </div>
+                </Template>
+            </RadzenDataList>
+        </div>
+
+
+    }
+    else
+    {
+        <RadzenDataGrid Data="@filteredHouses"
+                        TItem="House"
+                        AllowPaging="true"
+                        PageSize="100"
+                        RowClick="@OnRowClick"
+                        Style="cursor: pointer; height: 70vh;"
+                        AllowVirtualization="true"
+                        VirtualizationOverscanCount="10">
+            <Columns>
+                <RadzenDataGridColumn TItem="House" Property="City" Title="City" Frozen="true" />
+                <RadzenDataGridColumn TItem="House" Property="Vicinity" Title="Vicinity" />
+                <RadzenDataGridColumn TItem="House" Property="Bedrooms" Title="Bedrooms" />
+                <RadzenDataGridColumn TItem="House" Property="Price" Title="Price">
+                    <Template Context="house">
+                        @house.Price.ToString("C", new CultureInfo("en-ZM") { NumberFormat = { CurrencySymbol = "K" } })/month
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="House" Property="CreatedAt" Title="Posted">
+                    <Template Context="house">
+                        @house.CreatedAt.ToRelativeTime()
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+
+
+    }
+
+
+}
+
+@code {
+    private List<House> houses;
+    private List<House> filteredHouses = new List<House>();
+    private string searchTerm = "";
+    private string filterMode = "City";
+    private bool isLoading = true;
+    private bool noInternetConnection = false;
+    private readonly List<string> filterOptions = new List<string> { "Vicinity", "City", "Bedrooms", "Price" };
+    private bool isCardView = true;
+
+    
+
+    private void ToggleView()
+    {
+        isCardView = !isCardView;
+        StateHasChanged();
+    }
+
+    private void OnRowClick(DataGridRowMouseEventArgs<House> args)
+    {
+        NavigateToHouseDetail(args.Data.Id);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHouses();
+    }
+
+
+    private async Task LoadHouses()
+    {
+        isLoading = true;
+        noInternetConnection = false;
+        StateHasChanged();
+
+        try
+        {
+            var apiClient = HttpClientFactory.CreateClient("API");
+            var response = await apiClient.GetAsync("/api/houses");
+            response.EnsureSuccessStatusCode();
+            var jsonData = await response.Content.ReadAsStringAsync();
+
+            var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Converters =
+                {
+                    new JsonStringEnumConverter(),
+                    new CustomDateTimeConverter(),
+                    new NullableDateTimeConverter()
+                }
+                };
+
+            houses = JsonSerializer.Deserialize<List<House>>(jsonData, options);
+
+            // Sort houses by recency (most recent first)
+            houses = houses.OrderByDescending(h => h.CreatedAt).ToList();
+
+            UpdateFilteredHouses();
+        }
+        catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException
+                                            || ex.InnerException is System.Net.WebException)
+        {
+            Console.WriteLine($"Network error: {ex.Message}");
+            noInternetConnection = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching houses: {ex.Message}");
+            houses = new List<House>();
+            UpdateFilteredHouses();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateFilteredHouses()
+    {
+        if (houses == null)
+        {
+            filteredHouses = new List<House>();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredHouses = houses;
+            return;
+        }
+
+        filteredHouses = houses.Where(h =>
+        {
+            return filterMode switch
+            {
+                "Vicinity" => h.Vicinity.Contains(searchTerm, StringComparison.OrdinalIgnoreCase),
+                "City" => h.City.Contains(searchTerm, StringComparison.OrdinalIgnoreCase),
+                "Bedrooms" => int.TryParse(searchTerm, out int bedrooms) && h.Bedrooms == bedrooms,
+                "Price" => decimal.TryParse(searchTerm.Replace(",", ""),
+                                          NumberStyles.Any,
+                                          CultureInfo.InvariantCulture,
+                                          out decimal price) &&
+                          Math.Round(h.Price, 2) <= Math.Round(price, 2),
+                _ => false
+            };
+        }).ToList();
+    }
+
+    private void HandleSearchChange(string value)
+    {
+        searchTerm = value;
+        UpdateFilteredHouses();
+        StateHasChanged();
+    }
+
+    private void HandleFilterModeChange(object value)
+    {
+        filterMode = value?.ToString() ?? "City";
+        searchTerm = ""; // Reset search term when filter mode changes
+        UpdateFilteredHouses();
+        StateHasChanged();
+    }
+
+    private async Task RetryLoading()
+    {
+        await LoadHouses();
+    }
+
+    private async Task NavigateToHouseDetail(int houseId)
+    {
+       
+        NavigationManager.NavigateTo($"/house/{houseId}");
+        Logger.LogInformation("Attempting to navigate to house {HouseId}", houseId);
+
+       
+    }
+
+    private string SearchPlaceholder => filterMode switch
+    {
+        "Vicinity" => "Enter vicinity name...",
+        "City" => "Enter city name...",
+        "Bedrooms" => "Enter number of bedrooms...",
+        "Price" => "Enter maximum price...",
+        _ => "Search..."
+    };
+
+
+   
+
+}
+
+<style>
+
+    .led-indicator {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+        position: relative;
+    }
+
+        .led-indicator::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .led-indicator.available {
+            background-color: #4CAF50;
+            box-shadow: 0 0 5px #4CAF50, 0 0 10px #4CAF50;
+        }
+
+        .led-indicator.unavailable {
+            background-color: #F44336;
+            box-shadow: 0 0 5px #F44336, 0 0 10px #F44336;
+        }
+
+        .led-indicator.available::before {
+            background-color: rgba(76, 175, 80, 0.6);
+        }
+
+        .led-indicator.unavailable::before {
+            background-color: rgba(244, 67, 54, 0.6);
+        }
+
+    @@keyframes pulse {
+        0% {
+            transform: scale(1);
+            opacity: 0.7;
+        }
+
+        50% {
+            transform: scale(1.2);
+            opacity: 0.3;
+        }
+
+        100% {
+            transform: scale(1);
+            opacity: 0.7;
+        }
+    }
+</style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<style>
+    .centered-items {
+        display: flex;
+        justify-content: center; /* Center the cards horizontally */
+        align-items: center; /* Center the cards vertically if needed */
+        flex-direction: column; /* Stack items vertically if there are multiple */
+        margin: 0 auto; /* Ensure margin is auto for centering */
+        padding: 10px; /* Add some padding for spacing */
+        background: none; /* Remove background */
+        border: none; /* Remove border */
+    }
+
+    ::deep .rz-datatable-scrollable-header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+
+    ::deep .rz-datatable-scrollable-header-box {
+        background-color: white;
+        border-bottom: 2px solid var(--rz-border-color);
+    }
+
+
+    ::deep .rz-datatable-hoverable-rows .rz-data-row:hover {
+        background-color: var(--rz-secondary-lighter);
+    }
+</style>
+
+

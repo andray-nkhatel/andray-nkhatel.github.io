@@ -1,0 +1,86 @@
+﻿/* searchBar.css */
+.add-house-button {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    margin: 50px;
+}
+
+    .add-house-button:hover {
+        background-color: #218838;
+    }
+
+@media (max-width: 768px) {
+    .add-house-button {
+        position: static;
+        display: block;
+        margin: 20px auto;
+        width: 100%;
+    }
+}
+
+.search-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+}
+
+.search-bar {
+    display: flex;
+    width: 100%;
+    max-width: 600px;
+}
+
+.search-input {
+    flex-grow: 1;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 5px 0 0 5px;
+    outline: none;
+}
+
+.filter-select {
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-left: none;
+    border-radius: 0 5px 5px 0;
+    background-color: white;
+    cursor: pointer;
+    outline: none;
+}
+
+    .search-input:focus,
+    .filter-select:focus {
+        border-color: #007bff;
+    }
+
+@media (max-width: 600px) {
+    .search-bar {
+        flex-direction: column;
+    }
+
+    .search-input,
+    .filter-select {
+        width: 100%;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+
+    .filter-select {
+        border-left: 1px solid #ccc;
+    }
+}

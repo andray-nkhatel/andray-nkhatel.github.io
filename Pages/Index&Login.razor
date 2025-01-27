@@ -1,0 +1,83 @@
+﻿@page "/index&login"
+@using Blazored.LocalStorage
+@using Rentbook.Models
+@using Rentbook.Services
+@inject IAuthService AuthService
+@inject ILocalStorageService localStorage
+@inject NavigationManager NavigationManager
+@layout AuthLayout
+
+<div class="container mt-5">
+    <div class="row justify-content-center align-items-center">
+        <div class="col-md-6">
+            <h1 class="display-4 mb-4">Welcome to Rentbook</h1>
+            <p class="lead mb-4">Rentbook is your one-stop solution for managing rental properties efficiently. Whether you're a landlord or a tenant, our platform simplifies the rental process.</p>
+            <ul class="list-unstyled">
+                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i>Easy property listing and searching</li>
+                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i>Streamlined rental applications</li>
+                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i>Automated rent collection</li>
+                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i>Maintenance request tracking</li>
+            </ul>
+        </div>
+        <div class="col-md-6">
+            <div class="login-form">
+                <EditForm Model="@loginModel" OnValidSubmit="HandleLogin">
+                    <div>
+                        <label for="email">Email</label>
+                        <InputText id="email" @bind-Value="loginModel.Email" placeholder="Enter your email" required class="form-control" />
+                    </div>
+                    <div>
+                        <label for="password">Password</label>
+                        <InputText type="password" id="password" @bind-Value="loginModel.Password" placeholder="Enter your password" required class="form-control" />
+                    </div>
+                    <button type="submit" class="btn">Log in</button>
+                </EditForm>
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger mt-3" role="alert">
+                        @errorMessage
+                    </div>
+                }
+                <div class="mt-3 text-center">
+                    <p>Don't have an account?</p>
+                    <button class="btn btn-secondary" @onclick="NavigateToRegister">Register</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new LoginModel();
+    private string errorMessage;
+
+    private async Task HandleLogin()
+    {
+        var result = await AuthService.Login(loginModel);
+        if (!string.IsNullOrEmpty(result.Token))
+        {
+            // Store token in local storage
+            await localStorage.SetItemAsync("authToken", result.Token);
+
+            // Store roles in local storage
+            await localStorage.SetItemAsync("userRoles", result.Roles);
+
+            // Console.WriteLine($"Login successful. Token: {result.Token}");
+            // Console.WriteLine($"User roles: {string.Join(", ", result.Roles)}");
+
+            // Navigate to dashboard for all successful logins
+            Console.WriteLine("Redirecting to /dashboard");
+            NavigationManager.NavigateTo("/");
+        }
+        else
+        {
+            errorMessage = "Invalid username or password.";
+            //Console.WriteLine("Login failed: " + errorMessage);
+        }
+    }
+
+    private void NavigateToRegister()
+    {
+        NavigationManager.NavigateTo("/register");
+    }
+}

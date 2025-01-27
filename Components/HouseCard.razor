@@ -1,0 +1,21 @@
+﻿@using Rentbook.Models
+@using System.Globalization
+
+<div class="house-card">
+    <img src="@(House?.Images?.FirstOrDefault()?.ImageUrl ?? "default-house-image.jpg")" alt="@House.Address" class="house-image">
+    <div class="house-info">
+        
+            <div class="house-price">
+                <strong>K@(Math.Round(House.Price, 0).ToString("N0", new CultureInfo("en-ZM")))</strong> monthly
+            </div>
+        <div class="house-bedroom">
+            @House.Bedrooms bedroom(s)
+        </div>
+        <div class="house-city">@House.Vicinity</div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public House House { get; set; }
+}
